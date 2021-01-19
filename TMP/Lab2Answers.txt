@@ -1,0 +1,134 @@
+Lab 2 answers for additional questions:
+
+1.The priority inversion problem could cause that a higher-priority process needs to wait for the completion of a lower-priority process.
+
+1a. Priority inheritance is one approach to address this issue. Please give another approach and briefly describe its idea.
+
+Ans:
+	- One approach is to use priority ceiling. In this approach, each resource is assigned a priority that is equal to the highest possible priority that may lock the resource. Whenever a process locks this resource, its priority is changed to that of the resource, making the current process the highest priority process. One possible issue is that we need to know beforehand the highest possible priority of a process that might lock a resource.
+	- Another approach is to suspend the lower priority blocking process when a higher priority process comes calling. The state of the lower priority process at suspension should be saved, and once the higher priority process releases the resource, the lower priority process is resumed.
+
+
+1b. Design a test case to show that your approach can address the priority inversion problem. You should compare the results that derived from the original XINU implementation (use semaphore) and that derived from your implementation (use readers/writer locks). Put your results in Lab2Answers.txt and your test case program (name it task1.c) in both ./sys and ./TMP
+
+Ans:
+XINU semaphores:
+Processes - P1(priority:20), P2(priority:25) and P3(priority:30).
+One semaphore used.
+P1 and P3 try to wait on a semaphore and P2 doesn't. Other than this, there is no difference among the processes.
+Processes are resumed in the order P1, P2, P3.
+P1 gets scheduled and acquires the semaphore.
+P2 gets scheduled and executes.
+P3 gets scheduled and waits on the semaphore.
+As there is no mechanism to handle priority inversion, P2 gets scheduled and finishes.
+P1 gets scheduled and releases the semaphore.
+P3 acquires the semaphore and finishes execution.
+
+PA2 locks:
+Processes - P1(priority:20), P2(priority:25) and P3(priority:30).
+One lock used.
+P1 and P3 try to acquire a lock and P2 doesn't. Other than this, there is no difference among the processes.
+Processes are resumed in the order P1, P2, P3.
+P1 gets scheduled and acquires the lock.
+P2 gets scheduled and executes.
+P3 gets scheduled and waits on the lock.
+Priority inheritance mechanism boosts the priority of P1 and schedules it.
+P1 finishes and releases the lock.
+P3 gets scheduled and finishes.
+P2 gets scheduled and finishes.
+
+Another important point to note is the time P3 spends waiting. Due to priority inheritance, this wait time is significantly reduced.
+
+Following is the output of the test case.
+The comments following each step illustrate what is happening in the system.
+
+OUTPUT:
+
+Xinu Version (CSC501 1-2017 base) #6 (ukmallav@vm16-112.vcl) Fri Mar 13 16:42:07 EDT 2020
+
+16777216 bytes real mem
+134159 bytes Xinu code
+clock enabled
+
+XINU SEMAPHORES:
+Semaphore created successfully
+P1 begins
+P1 priority: 20					//P1's prio is 20
+P1 trying to acquire semaphore			
+P1 acquired the semaphore successfully
+P2 begins
+P2 priority: 25
+P3 begins
+P3 priority: 30
+P3 trying to acquire semaphore			//P3 waits as P1 already waits on the sem
+P2 finishes					//P2, instead of P1 gets executed first
+P1 priority: 20					//P1 now gets scheduled and releases the sem
+P1 releases the semaphore
+P3 acquired the semaphore successfully		//P3 finally acquires the sem
+P1 priority: 20
+P1 waited 0 millisec for the semaphore		
+P1 finishes
+P3 priority: 30
+P3 releases the semaphore
+P3 priority: 30
+P3 waited 11530 millisec for the semaphore	//waiting time for P3
+P3 finishes
+
+PA2 LOCKS:
+P1 begins
+P1 priority: 20					//P1's initial prio is 20
+P1 trying to acquire lock
+P1 acquired the lock successfully
+P2 begins
+P2 priority: 25
+P3 begins
+P3 priority: 30
+P3 trying to acquire lock			//P3 tries to acquire the lock
+P1 priority: 30					//P1's trio is boosted to that of P3's
+P1 releases the lock				//P1 executes and releases the lock
+P1 priority: 20					//P1's trio is now set back to 20
+P1 waited 0 millisec for the lock
+P1 finishes
+P3 acquired the lock successfully
+P3 priority: 30
+P3 releases the lock
+P3 priority: 30
+P3 waited 1010 millisec for the lock		//P3's waiting time for the lock
+P3 finishes
+P2 finishes					//P2 finishes after P1 and P3
+
+
+All user processes have completed.
+
+
+
+
+2. Synchronization is a quite complex issue in operating systems. To show your understanding about process synchronization, you are asked to point out a potential problem in this pesudo-code: task2_sync_issue.c. Multiple reader processes can execute this code concurrently by calling reader(). You are asked to describe an issue it may cause and why it can happen. Put your answer in Lab2Answers.txt mentioned above.
+
+Ans: 
+
+In the given code, as multiple reader processes can hold the resource, any incoming writer may have to endure significant waiting times. This is one potential problem.
+
+Also, as multiple readers can read concurrently, the function call read() might cause issues.(if there is no mutual exclusion inside the read function).
+As the content inside the buffer might be read using a pointer, multiple readers running concurrently might interfere with each other, causing inconsistent and undesirable effects.
+
+Example scenario:
+
+Let us assume that there is no mutual exclusion in the read function.
+
+Reader 1:  	|    |     |     |     |     |    |
+Buffer		| A  |  B  |  C  |  D  |  E  |  F |  .....
+		|    |     |     |     |     |    |
+
+		              ^
+Pointer - 3rd slot	      |
+
+Reader 1 is sequentially reading the buffer. As of now, pointer is at the 3rd slot.
+
+Now, reader 2 comes in and tries to read.
+As all the variables in the read function are shared, and there is no mutual exclusion,
+Reader 2 now sets the pointer to the first location. 
+Due to this, reader 1 ends up loading wrong data.
+
+The issue is caused because of the lack of atomicity in read() function.
+
